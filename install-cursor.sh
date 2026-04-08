@@ -27,16 +27,18 @@ for skill_dir in "$TEMP_DIR"/skills/*/; do
   [ -d "$skill_dir" ] || continue
   skill_name=$(basename "$skill_dir")
 
-  # Resolve symlink to get the actual SKILL.md content
+  # Resolve the source directory: if SKILL.md is a symlink, use the
+  # directory it points to so that sibling docs/scripts/assets are included.
   if [ -L "$skill_dir/SKILL.md" ]; then
-    src=$(cd "$TEMP_DIR" && realpath "$skill_dir/SKILL.md" 2>/dev/null || readlink -f "$skill_dir/SKILL.md")
+    src_file=$(cd "$TEMP_DIR" && realpath "$skill_dir/SKILL.md" 2>/dev/null || readlink -f "$skill_dir/SKILL.md")
+    src_dir=$(dirname "$src_file")
   else
-    src="$skill_dir/SKILL.md"
+    src_dir="$skill_dir"
   fi
 
-  if [ -f "$src" ]; then
-    mkdir -p "$SKILLS_DIR/$skill_name"
-    cp "$src" "$SKILLS_DIR/$skill_name/SKILL.md"
+  if [ -f "$src_dir/SKILL.md" ]; then
+    rm -rf "$SKILLS_DIR/$skill_name"
+    cp -R "$src_dir" "$SKILLS_DIR/$skill_name"
     echo "  Installed: $skill_name"
   fi
 done
