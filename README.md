@@ -26,11 +26,62 @@ curl -fsSL https://raw.githubusercontent.com/cloud-bulldozer/org-skills/main/ins
 
 ### Any LLM
 
-Skills are just markdown — read the file and pass it as a system prompt:
+Skills are just markdown — read the `SKILL.md` and pass it as a system prompt to any provider.
 
 ```python
 skill = open("orion/skills/orion-regression-analysis/SKILL.md").read()
-# Pass as system prompt to any provider
+query = "Analyze cluster-density-v2 results on AWS"
+```
+
+#### OpenAI
+
+```python
+from openai import OpenAI
+
+client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+resp = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[
+        {"role": "system", "content": skill},
+        {"role": "user", "content": query},
+    ],
+)
+print(resp.choices[0].message.content)
+```
+
+#### Anthropic
+
+```python
+from anthropic import Anthropic
+
+client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+resp = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    max_tokens=8192,
+    system=skill,
+    messages=[{"role": "user", "content": query}],
+)
+print("".join(block.text for block in resp.content if hasattr(block, "text")))
+```
+
+#### Google Vertex AI
+
+```python
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_google_vertexai.model_garden import ChatAnthropicVertex
+
+client = ChatAnthropicVertex(
+    model_name="claude-3-5-sonnet-v2@20241022",
+    project=os.environ["GOOGLE_CLOUD_PROJECT"],
+    location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-east5"),
+    max_output_tokens=8192,
+    temperature=0.01,
+)
+resp = client.invoke([
+    SystemMessage(content=skill),
+    HumanMessage(content=query),
+])
+print(resp.content)
 ```
 
 ## Updating
