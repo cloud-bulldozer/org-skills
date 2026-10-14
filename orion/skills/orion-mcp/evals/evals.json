@@ -43,6 +43,21 @@
         "Calls has_networking_regressed (not has_openshift_regressed) for networking regression intent",
         "Passes filtered config_name and input_vars from discover_jobs results"
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "Check changepoints and plot gatewayRequestDurationP99 for MaaS odh-nil-bulk on 4.21 over the last 60 days. discover_jobs finds the nil-bulk job but configs is empty; get_orion_configs lists the four maas-gateway-perf-odh configs. get_orion_metrics_with_meta returns ${job}-gatewayRequestDuration${pct} and ${job}-${comp}Container${kind}-${labels.container.keyword}. get_orion_metrics still returns [] after the correct inputs are passed.",
+      "expected_output": "Discovers MaaS jobs, selects the available nil-bulk config, supplements metadata with the nil-bulk sweep inputs, and retries concrete metric discovery with the same inputs. If it remains empty, reports analysis unavailable without fabricating plots, regression results or a data-source diagnosis.",
+      "files": [],
+      "expectations": [
+        "Uses workload=maas and version=4.21 rather than the default payload workload",
+        "Selects maas-gateway-perf-odh-nil-bulk.yaml despite empty discovered configs; does not substitute a generic MaaS config",
+        "Passes providers=gpt-4o-openai,gpt-4o-azure,gpt-4o-bedrock and payload_sizes=medium,large,very-large as comma-separated strings in JSON input_vars",
+        "Includes gateway_modes=gateway,baseline and orion_concurrency_levels=8,64,512, and reuses the same variables for metric tool calls",
+        "Uses get_orion_metrics to obtain live concrete names when metadata contains raw templates; never passes a ${...} template or an invented container name as a metric argument",
+        "Stops before calling regression or plotting tools when live metric discovery is empty; reports regression status unknown instead of accepting No changepoints found without observations",
+        "Does not infer a separate ES cluster or broken ingestion from empty output, and does not bypass MCP with CLI execution"
+      ]
     }
   ]
 }

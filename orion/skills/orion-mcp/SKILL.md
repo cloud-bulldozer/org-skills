@@ -104,6 +104,42 @@ Use `configs` directly as comma-separated `config_name`. Build `input_vars` JSON
 
 **If `configs` is empty** for a job (prow artifacts expired or unavailable): use `orion-mcp:get_orion_configs` to list available configs, then match by benchmark name (e.g. benchmark `cluster-density-v2` → config `cluster-density.yaml`). If no obvious match, ask the user which config to use.
 
+## MaaS Support
+
+Apply this section **only** to MaaS gateway questions/configs; keep the existing workflow unchanged for other workloads. For MaaS, supplement discovered cluster metadata with the sweep inputs below and pass them to every tool, **including `get_orion_metrics_with_meta`** (the standard no-`input_vars` shortcut does not apply here). Different MaaS sweeps require separate calls, not one comma-joined config list with shared inputs.
+
+MaaS configs do not keep all metadata and metrics inline:
+- `parentConfig` supplies shared test metadata; child metadata takes precedence. Its merge is shallow, so a child `wildcard` block replaces the parent's entire block.
+- `metricsFile` loads external metric definitions. Those definitions can require Jinja inputs even when the top-level config does not.
+- Jinja `{% set %}` / `{% for %}` blocks build metric lists from `input_vars`. Statements behind YAML `#` comments still execute. Pass a JSON object encoded as a string; MaaS sweep variables are comma-separated strings, not JSON arrays.
+- `fan_out` expands static entries and substitutes `${var}` in metric names and nested string values after Jinja rendering. Each result retains the template's aggregation, direction and threshold.
+- `group_by` discovers values from ES at runtime within the selected test runs. A remaining `${labels.container.keyword}` is a dynamic template, not a usable metric key; do not invent container names.
+
+**MaaS job inputs:** discover with `workload="maas"`. The jobs share benchmark `maas-gateway-perf`, so benchmark metadata alone cannot select the right config or sweep. Match the job variant to an available config, then supplement cluster metadata with:
+
+| Job variant | `config_name` | `providers` | `payload_sizes` |
+|---|---|---|---|
+| odh-anthropic | maas-gateway-perf-odh-anthropic.yaml | claude-sonnet-anthropic | small,medium,large,very-large |
+| odh-vertex | maas-gateway-perf-odh-vertex.yaml | claude-sonnet-vertex | small,medium,large,very-large |
+| odh-nil-small | maas-gateway-perf-odh-nil-small.yaml | gpt-4o-openai,gpt-4o-azure,gpt-4o-bedrock | small |
+| odh-nil-bulk | maas-gateway-perf-odh-nil-bulk.yaml | gpt-4o-openai,gpt-4o-azure,gpt-4o-bedrock | medium,large,very-large |
+
+Use `gateway_modes="gateway,baseline"` and `orion_concurrency_levels="8,64,512"` unless the user or job specifies another recorded slice. CI environment variables are not automatically available to the MCP server; pass these inputs explicitly. Verify against the job's actual environment and the [upstream MaaS reference](https://github.com/cloud-bulldozer/orion/blob/main/docs/maas-gateway-perf.md); template defaults (`small`, `gpt-4o-openai`) do not cover every MaaS job. Gateway and baseline are the two A/B legs; compare matching provider, payload and concurrency.
+
+For nil-bulk, add these fields to `input_vars` and reuse them for metric discovery, data retrieval, plots and regression checks:
+```json
+{"providers":"gpt-4o-openai,gpt-4o-azure,gpt-4o-bedrock","payload_sizes":"medium,large,very-large","gateway_modes":"gateway,baseline","orion_concurrency_levels":"8,64,512"}
+```
+
+**MaaS execution order — do not skip these gates:**
+1. Confirm the config from discovery. If `configs` is empty, call `get_orion_configs` and verify the per-job filename **before calling any tool with `config_name`**.
+2. Call `get_orion_metrics` with the verified config, requested version and supplemented `input_vars` to obtain concrete names from live results.
+3. If that response is empty, errors, or contains only unresolved templates, **stop: do not call regression or plotting tools**. Report regression status **unknown**, even if a previous tool said “No changepoints found.” Regression detection is not a fallback data-discovery step.
+4. Only after concrete names are returned, call regression/plot tools with the same inputs and requested window. Select an exact returned key, including job prefix and aggregation suffix (e.g. `gateway-medium-gpt-4o-openai-c8-gatewayRequestDurationP99_avg`), not just `gatewayRequestDurationP99`.
+5. Use `get_orion_metrics_with_meta` when thresholds/directions are needed. Raw `${...}` names from that YAML reader are templates, not proof of missing ES documents. Report only returned slice coverage; absent keys do not establish nonexistent runs or failed ingestion.
+
+If correct inputs still yield only templates, empty metrics, render errors or no observations, report that analysis is unavailable and include the config, inputs and tool error. A missing config is not permission to substitute a generic workload. Do not claim “no regressions,” a separate ES cluster, or a broken ingestion pipeline from empty output alone; explain that unresolved server/config support may need a separate fix. Do not bypass MCP by running the CLI.
+
 ## Step 3: Call orion-mcp
 
 Build `input_vars` from the job's `metadata` as a JSON string. Comma-join config files for multi-config tools.

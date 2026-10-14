@@ -2,7 +2,7 @@
   "plugins": [
     {
       "name": "orion",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "Orion performance regression detection \u2014 config generation, Elasticsearch discovery, analysis, and MCP query planning for OpenShift CPT benchmarks",
       "has_readme": true,
       "commands": [],

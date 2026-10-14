@@ -1,6 +1,6 @@
 {
   "name": "orion",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Orion performance regression detection — config generation, Elasticsearch discovery, analysis, and MCP query planning for OpenShift CPT benchmarks",
   "author": {
     "name": "Cloud Bulldozer Team"
